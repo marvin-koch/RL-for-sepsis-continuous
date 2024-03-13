@@ -53,7 +53,14 @@ from scipy.spatial.distance import cdist
 from scipy.interpolate import interp1d
 from scipy import stats
 
-from fancyimpute import KNN
+
+"""
+Remplaced fancyimpute with sklearn imputer
+"""
+
+# from fancyimpute import KNN
+
+from sklearn.impute import KNNImputer
 
 parser = argparse.ArgumentParser()
 parser.add_argument("--process_raw", action='store_true', help="If specified, additionally save trajectories without normalized features")
@@ -840,7 +847,7 @@ ref = np.copy(reformat3[:,11:mechventcol])  #columns of interest
 bar_knn = pyprind.ProgBar(len(range(0,reformat3.shape[0],9999)))
 for i in range(0,reformat3.shape[0],9999):   #dataset divided in 10K rows chunks (otherwise too large)
     bar_knn.update()
-    ref[i:i+9999,:] = KNN(k=1).fit_transform(ref[i:i+9999,:])
+    ref[i:i+9999,:] = KNNImputer(n_neighbors=1).fit_transform(ref[i:i+9999,:])
 
 reformat3t[reformat3t_cols[11:mechventcol]] = ref 
 
@@ -1546,7 +1553,7 @@ ref = np.copy(reformat3[:,12:mechventcol])  #columns of interest
 bar_knn = pyprind.ProgBar(len(range(0,reformat3.shape[0],9999)))
 for i in range(0,reformat3.shape[0],9999):   # Dataset divided in 10K rows chunks (otherwise too large)
     bar_knn.update()
-    ref[i:i+9999,:] = KNN(k=1).fit_transform(ref[i:i+9999,:])
+    ref[i:i+9999,:] = KNNImputer(n_neighbors=1).fit_transform(ref[i:i+9999,:])
 
 # Copy on the interpolated data
 reformat3t[reformat3t_cols[12:mechventcol]] = ref 

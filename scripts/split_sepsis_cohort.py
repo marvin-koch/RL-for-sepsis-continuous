@@ -55,7 +55,7 @@ num_dem = 5
 num_acuity_scores = 3
 # horizon should be the max length of a traj we want to keep
 horizon = 21
-device = 'cpu'
+device = 'mps'
 
 dem_keep_cols = ['o:gender', 'o:mechvent', 'o:re_admission', 'o:age', 'o:Weight_kg']
 obs_keep_cols = ['o:GCS', 'o:HR', 'o:SysBP',
