@@ -17,7 +17,7 @@ import time
 import pandas as pd
 import numpy as np
 
-save_dir = 'data/sepsis_mimiciii/'
+save_dir = '../data/'
 acuity_file = 'acuity_scores.csv'
 
 data_file = os.path.join(save_dir, 'sepsis_final_data_RAW_withTimes.csv')
@@ -126,3 +126,4 @@ keeping = keeping.rename(columns={"o:SOFA": "c:SOFA", "c:oasis": "c:OASIS", "c:s
 
 # Save off the acuity scores for use later 
 keeping.to_csv(os.path.join(save_dir,acuity_file))
+print("finished")

@@ -20,7 +20,7 @@ parser.add_argument("-p", "--password", default='PASSWORD', help="User's passwor
 pargs = parser.parse_args()
 
 # Initializing database connection
-conn = pg.connect("dbname='mimic' user={0} host='mimic' options='--search_path=mimimciii' password={1}".format(pargs.username,pargs.password))
+conn = pg.connect("dbname='mimic' user={0} host='localhost' options='--search_path=mimimciii' password={1}".format(pargs.username,pargs.password))
 
 # Path for processed data storage
 exportdir = os.path.join(os.getcwd(),'processed_files')

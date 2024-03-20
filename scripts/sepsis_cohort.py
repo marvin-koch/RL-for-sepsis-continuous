@@ -847,7 +847,15 @@ ref = np.copy(reformat3[:,11:mechventcol])  #columns of interest
 bar_knn = pyprind.ProgBar(len(range(0,reformat3.shape[0],9999)))
 for i in range(0,reformat3.shape[0],9999):   #dataset divided in 10K rows chunks (otherwise too large)
     bar_knn.update()
-    ref[i:i+9999,:] = KNNImputer(n_neighbors=1).fit_transform(ref[i:i+9999,:])
+    # Print the shape of the input array before imputation
+    print("Shape of ref before imputation:", ref[i:i+9999, :].shape)
+    imputer = KNNImputer(n_neighbors=1)
+    ref_imputed = imputer.fit_transform(ref[i:i+9999, :])
+    # Ensure that the output array has the correct shape
+    # assert ref_imputed.shape == (9999, ref.shape[1]), "Shape mismatch after imputation"
+    ref[i:i+9999, :] = ref_imputed
+    # Print the shape of the output array after imputation
+    print("Shape of ref after imputation:", ref[i:i+9999, :].shape)
 
 reformat3t[reformat3t_cols[11:mechventcol]] = ref 
 
@@ -1553,8 +1561,11 @@ ref = np.copy(reformat3[:,12:mechventcol])  #columns of interest
 bar_knn = pyprind.ProgBar(len(range(0,reformat3.shape[0],9999)))
 for i in range(0,reformat3.shape[0],9999):   # Dataset divided in 10K rows chunks (otherwise too large)
     bar_knn.update()
-    ref[i:i+9999,:] = KNNImputer(n_neighbors=1).fit_transform(ref[i:i+9999,:])
-
+    imp = KNNImputer(n_neighbors=1, keep_empty_features=True)
+    re = imp.fit_transform(ref[i:i+9999,:])
+    print("Shape of input array:", ref[i:i+9999, :].shape)
+    print("Shape of output array after imputation:", re.shape)
+    ref[i:i+9999,:] = re
 # Copy on the interpolated data
 reformat3t[reformat3t_cols[12:mechventcol]] = ref 
 
@@ -1652,7 +1663,9 @@ a_raw = copy.deepcopy(a)
 a_raw = a_raw.reshape(-1, 1)
 print(a_raw.shape)
 a = stats.rankdata(a[a>0])/len(a[a>0]) # excludes zero fluid (will be action 1)
-iof = np.floor((a+0.2499999999)*4).astype(np.int) #converts iv volume in 4 actions
+# iof = np.floor((a+0.2499999999)*4).astype(np.int) #converts iv volume in 4 actions
+iof = np.floor((a + 0.2499999999) * 4).astype(int)  # converts iv volume in 4 actions
+
 a = MIMICtable['input_4hourly'] > 0 # location of non-zero fluid in big matrix
 io = np.ones(MIMICtable.shape[0]) # array of ones, by default     
 io[a] = iof + 1 # where more than zero fluid given: save actual action
@@ -1669,7 +1682,6 @@ vc[vc == 0] = 1
 
 actions = (io-1)*5 + (vc-1)
 actions_raw = np.concatenate((a_raw, vc_raw), axis = 1)
-
 # Process MIMICzs into trajectory data for later use
 MIMICzs             = pd.DataFrame(MIMICzs, columns=colmeta+colbin+colnorm+collog)
 meta_df             = pd.DataFrame(MIMICzs[colmeta].values, columns = colmeta)
@@ -1699,7 +1711,10 @@ for i in trajectories:
     data['traj'][i]['meta'] = meta_df[meta_df['traj']==i][meta_cols].values.T
     data['traj'][i]['obs'] = ob_df[ob_df['traj'] == i][ob_cols].values.T
     data['traj'][i]['actions'] = ac_df[ac_df['traj'] == i]['action'].values.astype(np.int32)
-    data['traj'][i]['actions_raw'] = ac_raw_df[ac_raw_df['traj'] == i]['action_iv', 'action_vc'].values.astype(np.float64)
+    # data['traj'][i]['actions_raw'] = ac_raw_df[ac_raw_df['traj'] == i][['action_iv', 'action_vc']].values.astype(np.float64)
+    data['traj'][i]['action_iv'] = ac_raw_df[ac_raw_df['traj'] == i]['action_iv'].values.astype(np.float64)
+    data['traj'][i]['action_vc'] = ac_raw_df[ac_raw_df['traj'] == i]['action_vc'].values.astype(np.float64)
+
     data['traj'][i]['outcome'] = raw_data_df[raw_data_df['traj'] == i][outcome_key].values[0] 
     data['traj'][i]['rewards'] = np.zeros(len(data['traj'][i]['actions']))
     data['traj'][i]['rewards'][-1] = (1-2*data['traj'][i]['outcome'])
@@ -1731,67 +1746,69 @@ for i in data['traj'].keys():
 df = pd.DataFrame(all_data, columns=col_names)
 df.to_csv('sepsis_final_data_withTimes.csv', index=False)
 
-if pargs.process_raw: # If we want to convert the MIMICraw data into trajectories, repeat the above code without normalizing
-    raw_df              = pd.DataFrame(MIMICraw, columns=colmeta+colbin+colnorm+collog)
-    meta_df             = raw_df[colmeta]
-    meta_df             = pd.DataFrame(meta_df.values, columns=colmeta)
-    ob_df               = raw_df[colbin+colnorm+collog]
-    ob_df               = pd.DataFrame(ob_df.values, columns=colbin+colnorm+collog)
-    ac_df               = pd.DataFrame(actions, columns=['action'])
-    ac_raw_df           = pd.DataFrame(actions_raw, columns=['action_iv', 'action_vc'])
-    raw_data_df         = MIMICtable.copy()
-    num_actions         = 25
-    outcome_key         = 'died_within_48h_of_out_time' #Should be either 'died_within_48h_of_out_time' or ''mortality_90d''
-    meta_cols           = meta_df.columns.tolist()
-    ob_cols             = ob_df.columns.tolist()
-    raw_data_df['traj'] = (raw_data_df['bloc'] == 1).cumsum().values
-    meta_df['traj']     = (raw_data_df['bloc'] == 1).cumsum().values
-    ob_df['traj']       = (raw_data_df['bloc'] == 1).cumsum().values
-    ac_df['traj']       = (raw_data_df['bloc'] == 1).cumsum().values
-    ac_raw_df['traj']   = (raw_data_df['bloc'] == 1).cumsum().values
-    trajectories        = raw_data_df['traj'].unique()
-    data = {}
-    data['meta_cols'] = meta_cols
-    data['obs_cols'] = ob_cols
-    data['traj'] = {}
-    print('Sepsis Cohort -- Making RAW trajectory data')
-    bar = pyprind.ProgBar(len(trajectories))
-    for i in trajectories:
-        bar.update()
-        data['traj'][i] = {}
-        data['traj'][i]['meta'] = meta_df[meta_df['traj']==i][meta_cols].values.T
-        data['traj'][i]['obs'] = ob_df[ob_df['traj'] == i][ob_cols].values.T
-        data['traj'][i]['actions'] = ac_df[ac_df['traj'] == i]['action'].values.astype(np.int32)
-        data['traj'][i]['actions_raw'] = ac_raw_df[ac_raw_df['traj'] == i]['action_iv', 'action_vc'].values.astype(np.float64)
-        data['traj'][i]['outcome'] = raw_data_df[raw_data_df['traj'] == i][outcome_key].values[0] 
-        data['traj'][i]['rewards'] = np.zeros(len(data['traj'][i]['actions']))
-        data['traj'][i]['rewards'][-1] = (1-2*data['traj'][i]['outcome'])
+# if pargs.process_raw: # If we want to convert the MIMICraw data into trajectories, repeat the above code without normalizing
+raw_df              = pd.DataFrame(MIMICraw, columns=colmeta+colbin+colnorm+collog)
+meta_df             = raw_df[colmeta]
+meta_df             = pd.DataFrame(meta_df.values, columns=colmeta)
+ob_df               = raw_df[colbin+colnorm+collog]
+ob_df               = pd.DataFrame(ob_df.values, columns=colbin+colnorm+collog)
+ac_df               = pd.DataFrame(actions, columns=['action'])
+ac_raw_df           = pd.DataFrame(actions_raw, columns=['action_iv', 'action_vc'])
+raw_data_df         = MIMICtable.copy()
+num_actions         = 25
+outcome_key         = 'died_within_48h_of_out_time' #Should be either 'died_within_48h_of_out_time' or ''mortality_90d''
+meta_cols           = meta_df.columns.tolist()
+ob_cols             = ob_df.columns.tolist()
+raw_data_df['traj'] = (raw_data_df['bloc'] == 1).cumsum().values
+meta_df['traj']     = (raw_data_df['bloc'] == 1).cumsum().values
+ob_df['traj']       = (raw_data_df['bloc'] == 1).cumsum().values
+ac_df['traj']       = (raw_data_df['bloc'] == 1).cumsum().values
+ac_raw_df['traj']   = (raw_data_df['bloc'] == 1).cumsum().values
+trajectories        = raw_data_df['traj'].unique()
+data = {}
+data['meta_cols'] = meta_cols
+data['obs_cols'] = ob_cols
+data['traj'] = {}
+print('Sepsis Cohort -- Making RAW trajectory data')
+bar = pyprind.ProgBar(len(trajectories))
+for i in trajectories:
+    bar.update()
+    data['traj'][i] = {}
+    data['traj'][i]['meta'] = meta_df[meta_df['traj']==i][meta_cols].values.T
+    data['traj'][i]['obs'] = ob_df[ob_df['traj'] == i][ob_cols].values.T
+    data['traj'][i]['actions'] = ac_df[ac_df['traj'] == i]['action'].values.astype(np.int32)
+    # data['traj'][i]['actions_raw'] = ac_raw_df[ac_raw_df['traj'] == i]['action_iv', 'action_vc'].values.astype(np.float64)
+    data['traj'][i]['action_iv'] = ac_raw_df[ac_raw_df['traj'] == i]['action_iv'].values.astype(np.float64)
+    data['traj'][i]['action_vc'] = ac_raw_df[ac_raw_df['traj'] == i]['action_vc'].values.astype(np.float64)
 
-    print('Sepsis Cohort -- Making final RAW output file')
-    col_names = ['traj', 'step']
-    col_names.extend(['m:'+ i for i in data['meta_cols']])
-    col_names.extend(['o:'+ i for i in data['obs_cols']])
-    col_names.append('a:action')
-    col_names.append('a_iv:action_iv')
-    col_names.append('a_vc:action_vc')
-    col_names.append('r:reward')
-    all_data = []
-    bar = pyprind.ProgBar(len(data['traj'].keys()))
-    for i in data['traj'].keys():
-        bar.update()
-        for ctr in range(data['traj'][i]['actions'].shape[0]):
-            all_data.append([])
-            all_data[-1].append(i)
-            all_data[-1].append(ctr)
-            for m_index in range(data['traj'][i]['meta'].shape[0]):
-                all_data[-1].append(data['traj'][i]['meta'][m_index, ctr])            
-            for o_index in range(data['traj'][i]['obs'].shape[0]):
-                all_data[-1].append(data['traj'][i]['obs'][o_index, ctr])
-            all_data[-1].append(data['traj'][i]['actions'][ctr])
-            all_data[-1].append(data['traj'][i]['action_iv'][ctr])
-            all_data[-1].append(data['traj'][i]['action_vc'][ctr])
-            all_data[-1].append(data['traj'][i]['rewards'][ctr])
-    df = pd.DataFrame(all_data, columns=col_names)
-    df.to_csv('sepsis_final_data_RAW_withTimes.csv', index=False)
 
-####################################################################################################################################
+    data['traj'][i]['outcome'] = raw_data_df[raw_data_df['traj'] == i][outcome_key].values[0] 
+    data['traj'][i]['rewards'] = np.zeros(len(data['traj'][i]['actions']))
+    data['traj'][i]['rewards'][-1] = (1-2*data['traj'][i]['outcome'])
+
+print('Sepsis Cohort -- Making final RAW output file')
+col_names = ['traj', 'step']
+col_names.extend(['m:'+ i for i in data['meta_cols']])
+col_names.extend(['o:'+ i for i in data['obs_cols']])
+col_names.append('a:action')
+col_names.append('a_iv:action_iv')
+col_names.append('a_vc:action_vc')
+col_names.append('r:reward')
+all_data = []
+bar = pyprind.ProgBar(len(data['traj'].keys()))
+for i in data['traj'].keys():
+    bar.update()
+    for ctr in range(data['traj'][i]['actions'].shape[0]):
+        all_data.append([])
+        all_data[-1].append(i)
+        all_data[-1].append(ctr)
+        for m_index in range(data['traj'][i]['meta'].shape[0]):
+            all_data[-1].append(data['traj'][i]['meta'][m_index, ctr])            
+        for o_index in range(data['traj'][i]['obs'].shape[0]):
+            all_data[-1].append(data['traj'][i]['obs'][o_index, ctr])
+        all_data[-1].append(data['traj'][i]['actions'][ctr])
+        all_data[-1].append(data['traj'][i]['action_iv'][ctr])
+        all_data[-1].append(data['traj'][i]['action_vc'][ctr])
+        all_data[-1].append(data['traj'][i]['rewards'][ctr])
+df = pd.DataFrame(all_data, columns=col_names)
+df.to_csv('sepsis_final_data_RAW_withTimes.csv', index=False)

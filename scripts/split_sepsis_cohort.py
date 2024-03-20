@@ -12,7 +12,7 @@ raw_ts = pd.read_csv('../data/sepsis_final_data_RAW_withTimes.csv')
 ts_idx = ts[(ts['a_vc:action_vc'] < ts['a_vc:action_vc'].quantile(0.990)) & (ts['a_iv:action_iv'] < ts['a_iv:action_iv'].quantile(0.990))].index
 ts = ts.iloc[ts_idx]
 raw_ts = raw_ts.iloc[ts_idx]
-acuity_scores = pd.read_csv('../acuity_scores.csv')
+acuity_scores = pd.read_csv('../data/acuity_scores.csv')
 acuity_scores = acuity_scores.iloc[ts_idx]
 acuity_scores['o:SOFA'] = raw_ts['o:SOFA']
 
@@ -55,7 +55,7 @@ num_dem = 5
 num_acuity_scores = 3
 # horizon should be the max length of a traj we want to keep
 horizon = 21
-device = 'mps'
+device = 'cpu'
 
 dem_keep_cols = ['o:gender', 'o:mechvent', 'o:re_admission', 'o:age', 'o:Weight_kg']
 obs_keep_cols = ['o:GCS', 'o:HR', 'o:SysBP',

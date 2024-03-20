@@ -53,6 +53,7 @@ class Experiment(object):
         '''
         We assume continuous actions and scalar rewards!
         '''
+        print("init")
         self.device = device
         self.train_data_file = train_data_file
         self.validation_data_file = validation_data_file
@@ -74,6 +75,7 @@ class Experiment(object):
         self.input_dim = self.state_dim + self.context_dim + self.action_dim
         
         
+        print("ll")
         self.autoencoder_lower = self.autoencoder.lower()
         self.data_folder = folder_name + f'/{self.autoencoder_lower}_data'
         self.checkpoint_file = folder_name + f'/{self.autoencoder_lower}_checkpoints/checkpoint.pt'
@@ -85,6 +87,7 @@ class Experiment(object):
         self.pred_file = folder_name + f'/{self.autoencoder_lower}_data/{self.autoencoder_lower}_pred.pt'
         
         if self.autoencoder == 'AE':
+            print("AE")
             self.container = AE.ModelContainer(device)
             self.gen = self.container.make_encoder(self.hidden_size, self.state_dim, self.action_dim, context_dim=self.context_dim)
             self.pred = self.container.make_decoder(self.hidden_size, self.state_dim, self.action_dim)
@@ -150,6 +153,7 @@ class Experiment(object):
         self.autoencoding_losses_validation = []
         epoch_0 = 0
 
+        print("epoch")
         for epoch in range(epoch_0, self.autoencoder_num_epochs):
             epoch_loss = []
             print("Experiment: autoencoder {0}: training Epoch = ".format(self.autoencoder), epoch+1, 'out of', self.autoencoder_num_epochs, 'epochs')
@@ -477,10 +481,12 @@ class Experiment(object):
 
         # Initialize and Load the experience replay buffer corresponding with the current settings of rand_num, hidden_size, etc...
         if self.autoencoder != 'None':
+            print("here")
             replay_buffer = ReplayBuffer(self.hidden_size, self.minibatch_size, 350000, self.device, True)
             test_replay_buffer = ReplayBuffer(self.hidden_size, self.minibatch_size, 350000, self.device, True)
             state_dim = self.hidden_size
         else:
+            print("none")
             replay_buffer = ReplayBuffer(self.state_dim + self.context_dim, self.minibatch_size, 350000, self.device, False)
             test_replay_buffer = ReplayBuffer(self.state_dim + self.context_dim , self.minibatch_size, 350000, self.device, False)
             state_dim = self.state_dim + self.context_dim

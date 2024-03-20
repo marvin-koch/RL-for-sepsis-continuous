@@ -62,24 +62,30 @@ def run(args):
     params['rng'] = random_seed
     params['domain'] = args.domain
         
-    folder_name = params['storage_path'] + params['folder_location'] + params['folder_name']
+    # folder_name = params['storage_path'] + params['folder_location'] + params['folder_name']
+    folder_name = "~/Documents/ETHZ/MA2/Research in Data Science/RL-for-sepsis-continuous"
     if not os.path.exists(folder_name):
         os.makedirs(folder_name)
     params['folder_name'] = folder_name
     
     
+    print("torch")
     torch.set_num_threads(torch.get_num_threads())
     
     params[f'{args.autoencoder.lower()}_hypers'] = model_params # Cortex hyperparameter dictionaries 
     
     #Experiment
+    print("exp")
     experiment = Experiment(writer = SummaryWriter(), **params)    
+    print("hey")
     experiment.train_autoencoder()
     experiment.evaluate_trained_model()
    
     if args.rl_method == 'ddpg':
+        print("ddpg")
         experiment.train_DDPG_policy(float(params['actor_learning_rate']), float(params['critic_learning_rate']))  
     elif args.rl_method == 'td3':
+        print("td3") 
         experiment.train_TD3_policy(float(params['actor_learning_rate']), float(params['critic_learning_rate'])) 
     else:
         raise NotImplementedError
