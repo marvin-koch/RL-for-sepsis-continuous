@@ -497,5 +497,5 @@ class Experiment(object):
         # Run dBCQ_utils.train_dBCQ
         max_action = torch.FloatTensor([1.0, 1.0]).to(self.device)
 #
-        td3_utils.train_TD3(replay_buffer, test_replay_buffer, state_dim, self.action_dim, self.device, params, self.writer)
+        td3_utils.train_RNN_TD3(replay_buffer, test_replay_buffer, state_dim, self.action_dim, self.device, params, self.writer)
         

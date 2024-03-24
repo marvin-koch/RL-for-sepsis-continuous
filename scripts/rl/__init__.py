@@ -1,14 +1,7 @@
-from .policy_rnn import ModelFreeOffPolicy_Separate_RNN as Policy_Separate_RNN
+from .td3 import TD3
 
-AGENT_CLASSES = {
-    "Policy_Separate_RNN": Policy_Separate_RNN,
+print("init")
+print(TD3.name)
+RL_ALGORITHMS = {
+    TD3.name: TD3,
 }
-
-
-
-from enum import Enum
-
-
-class AGENT_ARCHS(str, Enum):
-    # inherit from str to allow comparison with str
-    Memory = Policy_Separate_RNN.ARCH

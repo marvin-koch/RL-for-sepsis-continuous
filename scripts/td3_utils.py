@@ -44,6 +44,8 @@ import matplotlib.pyplot as plt
 #plt.rc('font', size=14)  
 import seaborn as sns
 
+from rnn_models.policy_RNN import ModelFreeOffPolicy_Separate_RNN
+from torchkit.networks import ImageEncoder
 
 def custom_loss(output, target):
     temp = torch.abs(target-output).double()
@@ -308,7 +310,51 @@ def train_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device,
     plot_ucurve(policy, test_replay_buffer, device, parameters)
     plot_action_sofa(policy, test_replay_buffer,  parameters)
     
+
+def train_RNN_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device, parameters, writer):
+    """
+    one thing to note that the state dim is not the dim of raw data, it is the dimension output by auto-encoder
+    which is hidden size used in experiments script
+    """
+
+    buffer_dir = parameters['buffer_dir']
+    test_buffer_dir = parameters['test_buffer_dir']
+
+    # Initialize and load policy
+
+    policy = ModelFreeOffPolicy_Separate_RNN(state_dim, action_dim, "lstm", "td3", 16, 32, 16, 32, [256,256], [256,256], td3={"automatic_entropy_tuning": None,"target_entropy": None,"entropy_alpha": None })
     
+
+    # Load replay buffer
+    replay_buffer.load(buffer_dir, bootstrap=True)
+    test_replay_buffer.load(test_buffer_dir, bootstrap=True)
+
+  
+
+    evaluations = []
+    training_iters = 0
+
+    # eval freq is essentially how often we write stuff to tensorboard
+    # while training_iters < parameters["max_timesteps"]:
+    while training_iters < 2:
+        
+        # for _ in range(int(parameters["eval_freq"])):
+        for _ in range(2):
+            #policy.train(replay_buffer, training_iters)
+            qf1_loss, qf2_loss, policy_loss = policy.update(replay_buffer)
+
+        training_iters += int(parameters["eval_freq"])
+        print(f"Training iterations: {training_iters}")
+
+       # writer.add_scalar('Current Q value', torch.mean(targ_q), training_iters)
+
+    direct_eval_rnn(policy, test_replay_buffer,  [0, 1], device, parameters)
+    
+    plot_action_dist(policy, test_replay_buffer,  parameters)
+    plot_ucurve(policy, test_replay_buffer, device, parameters)
+    plot_action_sofa(policy, test_replay_buffer,  parameters)
+ 
+      
 
 
 
@@ -330,6 +376,87 @@ def direct_eval(rl_policy, replay_buffer,  vc_range, device, parameters):
         state, action_c,next_action_c,  next_state, reward, scores, next_scores, outcome, done = replay_buffer.sample()
         
         action_rl = rl_policy.actor(state)
+        batch_size = action_c.shape[0]
+        iv_rand = torch.FloatTensor(batch_size, 1).uniform_(
+            vc_range[0], vc_range[1])
+        vc_rand = torch.FloatTensor(batch_size, 1).uniform_(
+            vc_range[0], vc_range[1])
+        action_rd = torch.cat((iv_rand ,vc_rand), axis=1).to(device)
+        action_zero = torch.zeros_like(action_c).to(device)
+
+        
+        Q1_estimate, Q2_estimate = rl_policy.critic_target(state, action_rl, scores[:,2].unsqueeze(1))
+        Q_estimate = torch.min(Q1_estimate, Q2_estimate).cpu()
+        
+
+        Q1_clinician, Q2_clinician = rl_policy.critic_target(state, action_c, scores[:,2].unsqueeze(1))
+        Q_clinician = torch.min(Q1_clinician, Q2_clinician).cpu()
+
+
+        Q1_random, Q2_random = rl_policy.critic_target(state, action_rd, scores[:,2].unsqueeze(1))
+        Q_random = torch.min(Q1_random, Q2_random).cpu()
+
+        Q1_zero, Q2_zero = rl_policy.critic_target(state, action_zero, scores[:,2].unsqueeze(1))
+        Q_zero = torch.min(Q1_zero, Q2_zero).cpu()
+        
+        
+        del action_rd  # release
+        del action_zero
+        
+        Q_e += Q_estimate.sum()
+       
+        Q_c += Q_clinician.sum()
+       
+        Q_r += Q_random.sum()
+
+        Q_z += Q_zero.sum()
+
+        eval_iters += 1
+    
+    
+    res_e = (Q_e/(eval_iters*batch_size)).item()
+    res_c = (Q_c/(eval_iters*batch_size)).item()
+    res_r = (Q_r/(eval_iters*batch_size)).item()
+    res_z = (Q_z/(eval_iters*batch_size)).item()
+
+    print('Q estimate', Q_e/(eval_iters*batch_size))
+    print('Q clinician', Q_c/(eval_iters*batch_size))
+    print('Q random', Q_r/(eval_iters*batch_size))
+    print('Q zero', Q_z/(eval_iters*batch_size))
+
+    import csv   
+    fields=[res_e, res_c, res_r, res_z]
+    with open('res.csv', 'a') as f:
+        writer = csv.writer(f)
+        writer.writerow(fields)
+
+    
+
+def direct_eval_rnn(rl_policy, replay_buffer,  vc_range, device, parameters):
+    """
+    eval_policy: the policy to be evaluated
+    replay_buffer: test replay buffer with bootstrap == True
+    iv_range and vc_range: the min and max actions for the 2 actions, used to create uniform random policy
+    """
+    eval_iters = 0
+    Q_e, Q_c, Q_r, Q_z = 0, 0, 0, 0
+    
+    rl_policy.critic.eval()
+    rl_policy.actor.eval()
+    rl_policy.critic_target.eval()
+    rl_policy.actor_target.eval()
+    
+    while eval_iters < parameters["eval_steps"]:
+        state, action_c,next_action_c,  next_state, reward, scores, next_scores, outcome, done = replay_buffer.sample()
+        print("state", state.shape)
+        print("action_c", action_c.shape)
+        
+        # action_rl = rl_policy.actor.act(state)
+        action, reward, internal_state = rl_policy.get_initial_info()
+        print("action", action.shape)
+        reward = rl_policy.reform_reward(reward, scores, next_scores, next_action_c, next_action_c, done)
+
+        (action_rl, _, _, _), internal_state = rl_policy.act(internal_state, action, reward, state, True)
         batch_size = action_c.shape[0]
         iv_rand = torch.FloatTensor(batch_size, 1).uniform_(
             vc_range[0], vc_range[1])
