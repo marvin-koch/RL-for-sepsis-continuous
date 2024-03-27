@@ -5,9 +5,10 @@ from torch.nn import functional as F
 from torch.optim import Adam
 from utils import helpers as utl
 from rl import RL_ALGORITHMS
-from policies.seq_models import SEQ_MODELS
 import torchkit.pytorch_utils as ptu
 from utils import logger
+
+import gpt2_vanilla
 
 
 class ModelFreeOffPolicy_Shared_RNN(nn.Module):
@@ -68,7 +69,7 @@ class ModelFreeOffPolicy_Shared_RNN(nn.Module):
             + config_seq.model.action_embedder.hidden_size
             + config_seq.model.reward_embedder.hidden_size
         )
-        self.seq_model = SEQ_MODELS[config_seq.model.seq_model_config.name](
+        self.seq_model = gpt2_vanilla(
             input_size=rnn_input_size, **config_seq.model.seq_model_config.to_dict()
         )
 

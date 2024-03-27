@@ -46,6 +46,7 @@ import matplotlib.pyplot as plt
 import seaborn as sns
 
 from rnn_models.policy_RNN import ModelFreeOffPolicy_Separate_RNN
+from rnn_models.policy_Transformer_shared import ModelFreeOffPolicy_Shared_RNN
 from torchkit.networks import ImageEncoder
 
 def custom_loss(output, target):
@@ -312,7 +313,7 @@ def train_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device,
     plot_action_sofa(policy, test_replay_buffer,  parameters)
     
 
-def train_RNN_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device, parameters, writer):
+def train_LSTM_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device, parameters, writer):
     """
     one thing to note that the state dim is not the dim of raw data, it is the dimension output by auto-encoder
     which is hidden size used in experiments script
@@ -358,6 +359,50 @@ def train_RNN_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  dev
       
 
 
+def train_Transformer_TD3(replay_buffer, test_replay_buffer, state_dim, action_dim,  device, parameters, writer):
+    """
+    one thing to note that the state dim is not the dim of raw data, it is the dimension output by auto-encoder
+    which is hidden size used in experiments script
+    """
+
+    buffer_dir = parameters['buffer_dir']
+    test_buffer_dir = parameters['test_buffer_dir']
+
+    # Initialize and load policy
+
+    policy = ModelFreeOffPolicy_Shared_RNN(state_dim, action_dim, "gpt", "td3",True)
+    
+
+    # Load replay buffer
+    replay_buffer.load(buffer_dir, bootstrap=True)
+    test_replay_buffer.load(test_buffer_dir, bootstrap=True)
+
+  
+
+    evaluations = []
+    training_iters = 0
+
+    # eval freq is essentially how often we write stuff to tensorboard
+    while training_iters < parameters["max_timesteps"]:
+    # while training_iters < 2:
+        
+        for _ in range(int(parameters["eval_freq"])):
+        # for _ in range(2):
+            #policy.train(replay_buffer, training_iters)
+            qf1_loss, qf2_loss, policy_loss = policy.update(replay_buffer)
+
+        training_iters += int(parameters["eval_freq"])
+        print(f"Training iterations: {training_iters}")
+
+       # writer.add_scalar('Current Q value', torch.mean(targ_q), training_iters)
+
+    direct_eval_rnn(policy, test_replay_buffer,  [0, 1], device, parameters, action_dim, state_dim)
+    
+    rnn_plot_action_dist(policy, test_replay_buffer,  parameters, action_dim)
+    rnn_plot_ucurve(policy, test_replay_buffer, device, parameters, action_dim)
+    rnn_plot_action_sofa(policy, test_replay_buffer,  parameters, action_dim)
+ 
+      
 
 def direct_eval(rl_policy, replay_buffer,  vc_range, device, parameters):
     """
