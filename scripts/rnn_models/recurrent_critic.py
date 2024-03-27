@@ -146,6 +146,7 @@ class Critic_RNN(nn.Module):
                 o[t] -> a'[t]
         NOTE: there is one timestep misalignment in prev_actions and current_actions
         """
+        print("critic",prev_actions.shape, rewards.shape, observs.shape, current_actions.shape)
         assert (
             prev_actions.dim()
             == rewards.dim()

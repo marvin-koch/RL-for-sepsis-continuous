@@ -119,7 +119,7 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
 
         return current_action_tuple, current_internal_state
 
-    def forward(self, actions, rewards, observs, dones, masks):
+    def forward(self, actions, rewards, observs, dones, masks, scores, next_scores):
         """
         For actions a, rewards r, observs o, dones d: (T+1, B, dim)
                 where for each t in [0, T], take action a[t], then receive reward r[t], done d[t], and next obs o[t]
@@ -165,6 +165,8 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             rewards=rewards,
             dones=dones,
             gamma=self.gamma,
+            scores = scores,
+            next_scores=next_scores
         )
 
         # masked Bellman error: masks (T,B,1) ignore the invalid error
@@ -172,6 +174,9 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
         # 	should depend on masks > 0.0, not a constant B*T
         q1_pred, q2_pred = q1_pred * masks, q2_pred * masks
         q_target = q_target * masks
+        # not_done = 1.0 - dones
+        # q_target = rewards + (not_done* self.discount * q_target)
+
         qf1_loss = ((q1_pred - q_target) ** 2).sum() / num_valid  # TD error
         qf2_loss = ((q2_pred - q_target) ** 2).sum() / num_valid  # TD error
 
@@ -188,6 +193,8 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             critic=self.critic,
             critic_target=self.critic_target,
             observs=observs,
+            score = scores,
+            next_score=next_scores,
             actions=actions,
             rewards=rewards,
         )
@@ -289,6 +296,13 @@ class ModelFreeOffPolicy_Separate_RNN(nn.Module):
             (ptu.zeros((batch_size, 1)).float(), inverted_done), dim=0
         )  # (T+1, B, dim)
         
-        
+        #TRANSFORM TO [2,16,1]
+        print(scores.shape)
+        scores = torch.stack(
+            (ptu.zeros((batch_size, 1)).float(), (scores[:,2]).reshape(-1,1)), dim=0
+        )  # (T+1, B, dim)       
+        next_scores = torch.stack(
+            (ptu.zeros((batch_size, 1)).float(), (next_scores[:,2]).reshape(-1,1)), dim=0
+        )  # (T+1, B, dim)              
 
-        return self.forward(actions, rewards, observs, dones, ptu.ones(1, batch_size, 1))
+        return self.forward(actions, rewards, observs, dones, ptu.ones(1, batch_size, 1), scores, next_scores)

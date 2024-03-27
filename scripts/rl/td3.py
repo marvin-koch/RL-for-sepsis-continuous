@@ -77,6 +77,8 @@ class TD3(RLAlgorithmBase):
         rewards,
         dones,
         gamma,
+        scores,
+        next_scores,
         next_observs=None,  # used in markov_critic
     ):
         with torch.no_grad():
@@ -100,7 +102,7 @@ class TD3(RLAlgorithmBase):
             else:
                 next_q1, next_q2 = critic_target(
                     prev_actions=actions,
-                    rewards=rewards,
+                    rewards=next_scores,
                     observs=observs,
                     current_actions=new_actions,
                 )  # (T+1, B, 1)
@@ -119,7 +121,7 @@ class TD3(RLAlgorithmBase):
             # Q(h(t), a(t)) (T, B, 1)
             q1_pred, q2_pred = critic(
                 prev_actions=actions,
-                rewards=rewards,
+                rewards=scores,
                 observs=observs,
                 current_actions=actions[1:],
             )  # (T, B, 1)
@@ -135,15 +137,19 @@ class TD3(RLAlgorithmBase):
         critic,
         critic_target,
         observs,
+        score,
+        next_score,
         actions=None,
         rewards=None,
+
     ):
 
         if markov_actor:
             new_actions, _ = self.forward_actor(actor, observs)
         else:
+            ## NOT SURE WHAT THE REWARD IS
             new_actions, _ = actor(
-                prev_actions=actions, rewards=rewards, observs=observs
+                prev_actions=actions, rewards=score, observs=observs
             )  # (T+1, B, A)
 
         if markov_critic:
@@ -152,7 +158,7 @@ class TD3(RLAlgorithmBase):
         else:
             q1, q2 = critic(
                 prev_actions=actions,
-                rewards=rewards,
+                rewards=score,
                 observs=observs,
                 current_actions=new_actions,
             )  # (T+1, B, 1)
